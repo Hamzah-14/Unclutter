@@ -12,6 +12,7 @@ export interface Item {
   completed: boolean;
   created_at: string;
   notes: string | null;
+  related_ids: string[] | null;
 }
 
 export interface CreateItemInput {

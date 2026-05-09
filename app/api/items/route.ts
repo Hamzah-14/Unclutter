@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { generateEmbedding } from '@/lib/claude';
+import { generateEmbedding, findRelatedItems } from '@/lib/claude';
 import { CreateItemInput } from '@/types';
 
 export async function GET() {
@@ -17,5 +17,11 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from('items').insert({ ...body, embedding }).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+
+  const related_ids = await findRelatedItems(embedding, data.id);
+  if (related_ids.length > 0) {
+    await supabase.from('items').update({ related_ids }).eq('id', data.id);
+  }
+
+  return NextResponse.json({ ...data, related_ids });
 }

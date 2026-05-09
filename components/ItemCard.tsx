@@ -1,9 +1,16 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckSquare, Eye, ShoppingCart, Info, FileText } from 'lucide-react';
 import { Item, Priority, Category } from '@/types';
+import { isOverdue, getDaysUntilDue, isStale } from '@/lib/intelligence';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+
+interface RelatedItem {
+  id: string;
+  content: string;
+  category: Category;
+}
 
 const priorityConfig: Record<Priority, { bar: string; badge: string; label: string }> = {
   1: { bar: 'bg-red-500',     badge: 'bg-red-500/10 text-red-400 border-red-500/20',             label: 'High' },
@@ -30,10 +37,31 @@ export function ItemCard({ item, onComplete, onDelete, onEdit }: Props) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(item.content);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [relatedItems, setRelatedItems] = useState<RelatedItem[]>([]);
+
+  const idsKey = item.related_ids?.join(',') ?? '';
+
+  useEffect(() => {
+    if (!idsKey) return;
+    fetch(`/api/items/related?ids=${idsKey}`)
+      .then(r => r.json())
+      .then(setRelatedItems)
+      .catch(() => {});
+  }, [idsKey]);
+
+  const scrollToItem = (id: string) => {
+    document.querySelector(`[data-item-id="${id}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   const p = priorityConfig[item.priority as Priority];
   const c = categoryConfig[item.category];
   const { Icon } = c;
+
+  const overdue = isOverdue(item);
+  const days = getDaysUntilDue(item);
+  const dueSoon = !overdue && days !== null && days <= 3;
+  const stale = isStale(item);
 
   const saveEdit = () => {
     const trimmed = editValue.trim();
@@ -42,7 +70,7 @@ export function ItemCard({ item, onComplete, onDelete, onEdit }: Props) {
   };
 
   return (
-    <Card className={`relative overflow-hidden flex flex-col gap-4 p-5 min-h-[110px] transition-all duration-200 hover:bg-muted/10 hover:border-border/70 ${item.completed ? 'opacity-40' : ''}`}>
+    <Card data-item-id={item.id} className={`relative overflow-hidden flex flex-col gap-4 p-5 min-h-[110px] transition-all duration-200 hover:bg-muted/10 hover:border-border/70 ${item.completed ? 'opacity-40' : ''}`}>
       <div className={`absolute left-0 top-0 bottom-0 w-[4px] ${p.bar}`} />
 
       <div className="pl-3 flex items-start justify-between gap-3">
@@ -87,6 +115,21 @@ export function ItemCard({ item, onComplete, onDelete, onEdit }: Props) {
           <Badge variant="outline" className={`text-xs px-2.5 py-1 ${p.badge}`}>
             {p.label}
           </Badge>
+          {overdue && (
+            <Badge variant="outline" className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 border-red-500/20">
+              Overdue
+            </Badge>
+          )}
+          {dueSoon && (
+            <Badge variant="outline" className="text-xs px-2.5 py-1 bg-amber-500/10 text-amber-400 border-amber-500/20">
+              Due soon
+            </Badge>
+          )}
+          {stale && (
+            <Badge variant="outline" className="text-xs px-2.5 py-1 bg-zinc-500/10 text-zinc-400/60 border-zinc-500/15">
+              Stale
+            </Badge>
+          )}
           {item.due_date && (
             <Badge variant="outline" className="text-xs px-2.5 py-1 text-muted-foreground border-border/40">
               {new Date(item.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -110,6 +153,23 @@ export function ItemCard({ item, onComplete, onDelete, onEdit }: Props) {
           {item.completed ? '✓ Done' : 'Mark done'}
         </button>
       </div>
+
+      {relatedItems.length > 0 && (
+        <div className="pl-3 pt-1 border-t border-border/20 flex flex-col gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground/50">Related</p>
+          <div className="flex flex-wrap gap-1.5">
+            {relatedItems.map(r => (
+              <button
+                key={r.id}
+                onClick={() => scrollToItem(r.id)}
+                className="text-xs px-2 py-0.5 rounded border border-border/30 text-muted-foreground/60 hover:text-foreground hover:border-border/60 transition-colors duration-200 max-w-[180px] truncate"
+              >
+                {r.content.length > 30 ? r.content.slice(0, 30) + '…' : r.content}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

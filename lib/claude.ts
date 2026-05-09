@@ -61,6 +61,19 @@ Answer naturally and concisely. If nothing is relevant, say so.`);
   return result.response.text();
 }
 
+export async function findRelatedItems(embedding: number[], excludeId?: string): Promise<string[]> {
+  const { data, error } = await supabase.rpc('match_items', {
+    query_embedding: embedding,
+    match_threshold: 0.65,
+    match_count: 4,
+  });
+  if (error || !data) return [];
+  return (data as { id: string }[])
+    .filter(item => item.id !== excludeId)
+    .slice(0, 3)
+    .map(item => item.id);
+}
+
 export async function suggestTasks(items: Item[]): Promise<string> {
   const open = items.filter(i => !i.completed && i.category === 'todo');
   if (!open.length) return 'No open tasks found.';
@@ -71,6 +84,48 @@ Tasks:
 ${JSON.stringify(open.map(i => ({ content: i.content, priority: i.priority, due_date: i.due_date })))}
 
 3 bullet points max. Be direct.`);
+
+  return result.response.text();
+}
+
+export async function generateDailyDigest(items: Item[]): Promise<string> {
+  const open = items.filter(i => !i.completed);
+  if (!open.length) return 'Nothing open. You are all caught up.';
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const result = await flash.generateContent(`You are a personal assistant delivering a morning briefing. Today is ${today}.
+
+Open items:
+${JSON.stringify(open.map(i => ({ content: i.content, category: i.category, priority: i.priority, due_date: i.due_date, created_at: i.created_at })))}
+
+Write a short briefing (max 150 words) covering:
+1. Items overdue or due today
+2. Top 3 most urgent todos
+3. Any items that appear forgotten (no due date, created weeks ago)
+
+Be direct and practical. No filler. Write as if briefing a busy person at the start of their day.`);
+
+  return result.response.text();
+}
+
+export async function generateWeeklyReview(items: Item[]): Promise<string> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const recent = items.filter(i => i.created_at >= sevenDaysAgo);
+  if (!recent.length) return 'Nothing captured in the last 7 days.';
+
+  const result = await flash.generateContent(`You are a personal assistant delivering a weekly review.
+
+Items from the past 7 days:
+${JSON.stringify(recent.map(i => ({ content: i.content, category: i.category, priority: i.priority, completed: i.completed, created_at: i.created_at })))}
+
+Write a short weekly review (max 200 words) covering:
+1. What was captured this week, by category
+2. What was completed
+3. What is still open and may be drifting
+4. One honest observation about patterns (e.g. "mostly buy items, none completed")
+
+Be reflective and honest. No filler. Write as if doing a personal retrospective.`);
 
   return result.response.text();
 }

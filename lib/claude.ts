@@ -35,7 +35,9 @@ Chat:
 ${text}`);
 
   const raw = result.response.text();
-  return JSON.parse(raw.replace(/```json|```/g, '').trim()) as CreateItemInput[];
+  const match = raw.match(/\[[\s\S]*\]/);
+  if (!match) throw new Error('Gemini did not return a JSON array');
+  return JSON.parse(match[0]) as CreateItemInput[];
 }
 
 export async function queryItems(query: string): Promise<string> {

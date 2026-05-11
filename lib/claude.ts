@@ -3,7 +3,7 @@ import { Item, CreateItemInput } from '@/types';
 import { supabase } from '@/lib/supabase';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const flash = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const flash = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   const res = await fetch(

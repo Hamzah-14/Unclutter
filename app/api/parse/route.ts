@@ -10,11 +10,15 @@ async function batchEmbeddings(items: Awaited<ReturnType<typeof parseWhatsAppExp
   for (let i = 0; i < items.length; i += CHUNK) {
     const chunk = items.slice(i, i + CHUNK);
     const embedded = await Promise.all(
-      chunk.map(async item => ({
-        ...item,
-        source: 'whatsapp',
-        embedding: await generateEmbedding(item.content),
-      }))
+      chunk.map(async item => {
+        let embedding: number[] = [];
+        try {
+          embedding = await generateEmbedding(item.content);
+        } catch (e) {
+          console.error('Embedding failed for item:', item.content, e);
+        }
+        return { ...item, source: 'whatsapp', embedding };
+      })
     );
     results.push(...embedded);
     if (i + CHUNK < items.length) await new Promise(r => setTimeout(r, DELAY));

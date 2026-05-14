@@ -15,6 +15,12 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     }
   );
   const data = await res.json();
+
+  if (!res.ok || !data.embedding?.values) {
+    console.error('Embedding API error:', JSON.stringify(data));
+    throw new Error(data.error?.message || 'Embedding API returned no values');
+  }
+
   return data.embedding.values;
 }
 

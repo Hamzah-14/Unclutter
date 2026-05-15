@@ -7,7 +7,7 @@ const flash = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1/models/text-embedding-005:embedContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -17,7 +17,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   const data = await res.json();
 
   if (!res.ok || !data.embedding?.values) {
-    console.error('Embedding API error:', JSON.stringify(data));
+    console.error('Embedding API error — full response:', JSON.stringify(data));
     throw new Error(data.error?.message || 'Embedding API returned no values');
   }
 
@@ -49,13 +49,20 @@ ${text}`);
 export async function queryItems(query: string): Promise<string> {
   const embedding = await generateEmbedding(query);
 
-  const { data: items, error } = await supabase.rpc('match_items', {
+  const { data: vectorItems, error } = await supabase.rpc('match_items', {
     query_embedding: embedding,
     match_threshold: 0.5,
     match_count: 20,
   });
 
-  if (error || !items?.length) return "Nothing relevant found for that query.";
+  let items = vectorItems;
+
+  if (error || !items?.length) {
+    const { data: allItems } = await supabase.from('items').select('*').eq('completed', false);
+    items = allItems ?? [];
+  }
+
+  if (!items.length) return "Nothing relevant found for that query.";
 
   const result = await flash.generateContent(`You are a personal assistant. Answer the user's query using only the items below.
 
